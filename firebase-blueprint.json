@@ -1,0 +1,143 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile for HydroSight AI operators and analysts.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Display name of the operator."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["analyst", "operator", "admin"],
+          "maxLength": 20,
+          "description": "System role of the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "role", "createdAt"]
+    },
+    "SavedSimulation": {
+      "title": "SavedSimulation",
+      "description": "A saved groundwater stress simulation scenario snapshot.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique simulation record ID."
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the user who saved the simulation."
+        },
+        "scenarioName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Scenario name (e.g., High Extraction, Low Rainfall)."
+        },
+        "month": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Selected demonstration month."
+        },
+        "avgDepth": {
+          "type": "number",
+          "description": "Average groundwater depth in meters."
+        },
+        "avgRiskScore": {
+          "type": "number",
+          "description": "Average regional risk score (0-100)."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Analyst notes on the simulation run."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation."
+        }
+      },
+      "required": ["id", "ownerId", "scenarioName", "month", "avgDepth", "avgRiskScore", "notes", "createdAt"]
+    },
+    "AlertAcknowledgement": {
+      "title": "AlertAcknowledgement",
+      "description": "Record of an operator acknowledging an early warning alert.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique acknowledgement ID."
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the operator acknowledging the alert."
+        },
+        "alertId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID of the groundwater alert."
+        },
+        "zoneId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Target hydrogeological zone."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["acknowledged", "resolved"],
+          "maxLength": 20,
+          "description": "Status of the alert acknowledgement."
+        },
+        "actionTaken": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Preventive action logged by the operator."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp."
+        }
+      },
+      "required": ["id", "ownerId", "alertId", "zoneId", "status", "actionTaken", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Public operator profile metadata."
+    },
+    "/simulations/{simId}": {
+      "schema": { "$ref": "#/entities/SavedSimulation" },
+      "description": "User-saved simulation snapshots."
+    },
+    "/alertAcknowledgements/{ackId}": {
+      "schema": { "$ref": "#/entities/AlertAcknowledgement" },
+      "description": "User-logged alert acknowledgements and field interventions."
+    }
+  }
+}

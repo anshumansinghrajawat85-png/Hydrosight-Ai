@@ -1,0 +1,6 @@
+{
+  "name": "HydroSight AI",
+  "description": "Predictive Groundwater Intelligence & Early Warning System combining IoT sensors, environmental data, AI forecasting, and GIS intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

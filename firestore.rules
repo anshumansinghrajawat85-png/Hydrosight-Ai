@@ -1,0 +1,130 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "anshumansinghrajawat85@gmail.com"
+      );
+    }
+
+    // 3. Entity Validation Blueprints (Verbatim from firebase-blueprint.json)
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'role', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role is string && data.role.size() <= 20 && (data.role in ['analyst', 'operator', 'admin']) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSavedSimulation(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'scenarioName', 'month', 'avgDepth', 'avgRiskScore', 'notes', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'ownerId', 'scenarioName', 'month', 'avgDepth', 'avgRiskScore', 'notes', 'createdAt']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.scenarioName is string && data.scenarioName.size() >= 1 && data.scenarioName.size() <= 100 &&
+        data.month is string && data.month.size() >= 1 && data.month.size() <= 30 &&
+        data.avgDepth is number && data.avgDepth >= 0 && data.avgDepth <= 500 &&
+        data.avgRiskScore is number && data.avgRiskScore >= 0 && data.avgRiskScore <= 100 &&
+        data.notes is string && data.notes.size() <= 500 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAlertAcknowledgement(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'alertId', 'zoneId', 'status', 'actionTaken', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'ownerId', 'alertId', 'zoneId', 'status', 'actionTaken', 'createdAt']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.alertId is string && data.alertId.size() >= 1 && data.alertId.size() <= 64 && data.alertId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.zoneId is string && data.zoneId.size() >= 1 && data.zoneId.size() <= 64 &&
+        data.status is string && data.status.size() <= 20 && (data.status in ['acknowledged', 'resolved']) &&
+        data.actionTaken is string && data.actionTaken.size() >= 1 && data.actionTaken.size() <= 300 &&
+        data.createdAt is timestamp;
+    }
+
+    // 4. Collection Match Blocks
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(userId) && userId == request.auth.uid &&
+        isValidUser(incoming()) &&
+        incoming().createdAt == request.time &&
+        (incoming().role == 'analyst' || isAdmin());
+      allow update: if isVerified() && isValidId(userId) && isValidUser(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (request.auth.uid == userId && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName'])) ||
+          isAdmin()
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /simulations/{simId} {
+      allow get: if isSignedIn() && isValidId(simId) && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(simId) && incoming().id == simId &&
+        isValidSavedSimulation(incoming()) &&
+        incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(simId) && isValidSavedSimulation(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['notes'])) ||
+          isAdmin()
+        );
+      allow delete: if isVerified() && isValidId(simId) && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /alertAcknowledgements/{ackId} {
+      allow get: if isSignedIn() && isValidId(ackId) && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(ackId) && incoming().id == ackId &&
+        isValidAlertAcknowledgement(incoming()) &&
+        incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(ackId) && isValidAlertAcknowledgement(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().alertId == existing().alertId &&
+        incoming().zoneId == existing().zoneId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (existing().ownerId == request.auth.uid && existing().status != 'resolved' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'actionTaken'])) ||
+          isAdmin()
+        );
+      allow delete: if isVerified() && isValidId(ackId) && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+  }
+}
